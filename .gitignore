@@ -1,0 +1,19 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Arduino / PlatformIO build output
+build/
+.pio/
+*.elf
+*.bin
+*.hex
+*.map
+
+# 비밀 정보 (와이파이 비밀번호, API 키 등은 올리지 않기)
+secrets.h
+.env
