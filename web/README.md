@@ -51,8 +51,17 @@ npm run dev                  # http://localhost:3000
 
 공통 디자인(글래스 카드, 그라데이션 버튼, 이니셜 아바타, 배경 블롭)은 `src/app/globals.css`와 `src/components/ui.tsx`에 있어요.
 > ⚠️ `body`에 배경색을 넣지 마세요. 시안 배경(`.pairy-bg`, z-index -1)을 덮어서 화면이 단색이 됩니다.
-A 파트 화면과 연결되는 주소: 하단 탭 `NFC → /nfc`, `마이 → /my`, 홈 바로가기 `내 명함 → /card`.
-A 파트 주소가 다르면 `src/components/BottomNav.tsx`와 홈 바로가기만 바꾸면 됩니다.
+A 파트 화면 (하단 탭 `NFC → /nfc`, `마이 → /my`, 홈 바로가기 `내 명함 → /card`):
+
+| 시안 | 주소 | 파일 |
+|---|---|---|
+| 04_my_card_1 내 명함 | `/card` | `src/app/card/page.tsx` |
+| 02_nfc_tag_3 NFC 태그 | `/nfc` | `src/app/nfc/page.tsx` |
+| 03_card_received_1 명함 수신 | `/friends/add?code=…&source=nfc` | `src/app/friends/add/page.tsx` (B 파트 화면 재사용) |
+| 12_device_scan · 13_device_connected 기기 | `/device` | `src/app/device/page.tsx` |
+| (마이 탭) 내 정보 · 메뉴 | `/my` | `src/app/my/page.tsx` |
+
+키링 → 서버 연결(기기 등록 · 비밀키 · 펌웨어 설정)은 [`docs/keyring-server.md`](../docs/keyring-server.md)를 보세요.
 `/login`은 테스트용 임시 화면이에요.
 
 ## A 파트와 함께 쓰는 DB 칼럼
@@ -60,7 +69,7 @@ A 파트 주소가 다르면 `src/components/BottomNav.tsx`와 홈 바로가기�
 - `profiles.handle`(@haeun.dsn), `profiles.tags`(디자인, ENFP …), `profiles.friend_code`(친구 번호 6자리)
 - `profiles.step_goal`: 하루 걸음 목표 (기본 5,000, 1,000~50,000). `set_step_goal()` RPC로 저장
 - 전화번호는 다루지 않아요. 긴급 알림의 전화 버튼은 119로 걸려요
-- 키링 연결 상태(홈의 "정상 · 키링 연결됨")는 기기 연결(12·13) 파트 값으로 `HomeData.device`를 채우면 됩니다
+- 키링 연결 상태(홈의 "정상 · 키링 연결됨")는 `devices.last_seen_at`으로 채워요 (45초 안에 보고했으면 연결됨)
 
 ## NFC 태그에 쓸 주소
 

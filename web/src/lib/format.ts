@@ -16,6 +16,12 @@ export function famInviteUrl(code: string) {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   return `${origin}/f/${code}`;
 }
+/** 내 명함을 받는 주소 (NFC 태그 · QR · 링크). 열면 바로 친구 추가 */
+export function friendAddUrl(code: string, source: "nfc" | "code" = "code") {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return `${origin}/friends/add?code=${code}&source=${source}`;
+}
+
 export const prettyUrl = (url: string) => url.replace(/^https?:\/\//, "");
 
 /** 이름 첫 글자 (아바타) */

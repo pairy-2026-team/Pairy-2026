@@ -139,6 +139,29 @@ export type AlertRecipient = { user_id: string; nickname: string; status: Recipi
 
 export type DeviceStatus = "connected" | "disconnected" | "unknown";
 
+/** 키링 (devices 테이블. 비밀키 해시는 웹에서 못 읽음) */
+export type Device = {
+  id: string;
+  name: string;
+  battery: number | null;
+  firmware: string | null;
+  meet_count: number;
+  last_seen_at: string | null;
+  created_at: string;
+};
+
+/** 키링 등록/재발급 때 딱 한 번만 받는 값 -> 펌웨어 secrets.h 에 넣음 */
+export type DeviceSecret = { device_id: string; secret: string };
+
+/** 키링이 이 시간 안에 보고했으면 "연결됨" (펌웨어는 10초마다 보고) */
+export const DEVICE_ONLINE_MS = 45_000;
+
+export function deviceStatus(d: Pick<Device, "last_seen_at"> | null | undefined, now = Date.now()): DeviceStatus {
+  if (!d) return "unknown";
+  if (!d.last_seen_at) return "disconnected";
+  return now - new Date(d.last_seen_at).getTime() < DEVICE_ONLINE_MS ? "connected" : "disconnected";
+}
+
 /** 걸음 수: 오늘(실시간) + 목표 + 최근 7일 */
 export type StepsData = {
   today: number;

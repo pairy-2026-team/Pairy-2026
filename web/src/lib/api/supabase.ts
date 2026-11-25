@@ -5,6 +5,8 @@ import { kstDate, lastNDays } from "@/lib/date";
 import type {
   AlertDetail,
   AlertRecipient,
+  Device,
+  DeviceSecret,
   EmergencyAlert,
   Fam,
   FamMember,
@@ -16,10 +18,13 @@ import type {
   SafetySettings,
   StepsData,
 } from "@/lib/types";
+import { deviceStatus } from "@/lib/types";
 import type { PairyApi } from "./types";
 
 const DEFAULT_STEP_GOAL = 5000;
 const PROFILE_COLS = "id, nickname, friend_code, handle, tags";
+// secret_hash 는 권한이 없어서 select("*") 하면 에러 -> 칼럼을 직접 적음
+const DEVICE_COLS = "id, name, battery, firmware, meet_count, last_seen_at, created_at";
 
 function unwrap<T>(res: { data: T | null; error: PostgrestError | null }): T {
   if (res.error) throw toApiError(res.error);
@@ -46,7 +51,7 @@ export const supabaseApi: PairyApi = {
   async getHome() {
     const sb = getSupabase();
     const me = await uid();
-    const [profile, today, goal, safety, recipientCount, fams, incomingAlerts, myAlert] = await Promise.all([
+    const [profile, today, goal, safety, recipientCount, fams, incomingAlerts, myAlert, devices] = await Promise.all([
       this.getMe(),
       sb.from("daily_steps").select("steps").eq("user_id", me).eq("day", kstDate()).maybeSingle().then(unwrap),
       sb.from("profiles").select("step_goal").eq("id", me).single().then(unwrap),
@@ -63,6 +68,7 @@ export const supabaseApi: PairyApi = {
         .limit(1)
         .maybeSingle()
         .then(unwrap),
+      this.listDevices().catch(() => [] as Device[]), // devices 테이블이 아직 없어도 홈은 뜨게
     ]);
     return {
       me: profile,
@@ -73,8 +79,8 @@ export const supabaseApi: PairyApi = {
       fams,
       incomingAlerts,
       myActiveAlert: (myAlert as EmergencyAlert | null) ?? null,
-      // 키링 연결 상태는 기기 연결(12·13) 파트에서 채움
-      device: "unknown",
+      // 키링 연결 상태: 가장 최근에 보고한 키링 기준 (A 파트 devices)
+      device: deviceStatus(devices[0]),
     };
   },
 
@@ -319,6 +325,32 @@ export const supabaseApi: PairyApi = {
 
   async getRecipientCount() {
     return unwrap(await getSupabase().rpc("my_alert_recipient_count")) as number;
+  },
+
+  // ---------------- 기기(키링) ----------------
+  async listDevices() {
+    const rows = unwrap(
+      await getSupabase()
+        .from("devices")
+        .select(DEVICE_COLS)
+        .order("last_seen_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false }),
+    ) as Device[];
+    return rows;
+  },
+
+  async registerDevice(name) {
+    const rows = unwrap(await getSupabase().rpc("register_device", { p_name: name ?? null })) as DeviceSecret[];
+    return rows[0];
+  },
+
+  async resetDeviceSecret(deviceId) {
+    const rows = unwrap(await getSupabase().rpc("reset_device_secret", { p_device_id: deviceId })) as DeviceSecret[];
+    return rows[0];
+  },
+
+  async removeDevice(deviceId) {
+    unwrap(await getSupabase().rpc("remove_device", { p_device_id: deviceId }));
   },
 
   subscribeAlerts(onChange) {

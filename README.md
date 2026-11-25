@@ -34,6 +34,8 @@ docs/                문서 (배선도 등)
 2. 보드: `ESP32C3 Dev Module`, **USB CDC On Boot = Enabled**
 3. 먼저 `firmware/pariy_hw_test`를 올려 배선 확인 (시리얼 모니터 115200)
 4. 이상 없으면 `firmware/pariy_keyring`을 업로드
+5. 서버(Supabase)로 보내려면 `secrets.example.h`를 `secrets.h`로 복사해서 채운 뒤 다시 업로드
+   → 자세한 순서는 [docs/keyring-server.md](docs/keyring-server.md)
 
 ---
 

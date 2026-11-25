@@ -22,6 +22,9 @@ const MESSAGES: Record<string, string> = {
   INVALID_RESPONSE: "잘못된 응답이에요.",
   INVALID_STEP_GOAL: "걸음 목표는 1,000 ~ 50,000 사이로 정해 주세요.",
   INVALID_LOCATION: "위치 정보가 올바르지 않아요.",
+  DEVICE_NOT_FOUND: "키링을 찾을 수 없어요.",
+  TOO_MANY_DEVICES: "키링은 5개까지 등록할 수 있어요.",
+  DEVICE_NAME_REQUIRED: "키링 이름을 입력해 주세요.",
   NETWORK: "인터넷 연결을 확인해 주세요.",
 };
 

@@ -9,6 +9,7 @@ import { normalizeFamCode } from "@/lib/format";
 import type {
   AlertDetail,
   AlertRecipient,
+  Device,
   EmergencyAlert,
   Fam,
   FamSummary,
@@ -17,6 +18,7 @@ import type {
   RecipientStatus,
   SafetySettings,
 } from "@/lib/types";
+import { deviceStatus } from "@/lib/types";
 import type { PairyApi } from "./types";
 
 const NO_LOC = { latitude: null, longitude: null, accuracy_m: null, address: null, location_updated_at: null };
@@ -48,6 +50,7 @@ type State = {
   steps: Record<string, number>; // `${user}|${day}`
   stepGoal: number;
   stepsUpdatedAt: string | null;
+  devices?: Device[]; // A 파트 (예전 데모 데이터에는 없을 수 있음)
 };
 
 const iso = (msAgo = 0) => new Date(Date.now() - msAgo).toISOString();
@@ -382,6 +385,27 @@ function markSent(a: EmergencyAlert, reason: "timeout" | "manual" | "auto") {
   a.notified_count = ids.length;
 }
 
+// ---- 데모 키링: 등록하고 4초 뒤부터 "연결됨" (실제 키링이 켜져서 보고하는 것처럼) ----
+const DEMO_CONNECT_MS = 4000;
+function demoDevices(): Device[] {
+  const s = load();
+  // 처음엔 연결된 키링 1개 (시안 13번처럼). 사용자가 지우면 [] 로 남아 다시 안 생김
+  s.devices ??= [
+    { id: "demo-keyring-0001", name: "하은의 Pairy 키링", battery: 82, firmware: "pairy-keyring-3", meet_count: 7, last_seen_at: null, created_at: iso(3 * DAY) },
+  ];
+  const now = Date.now();
+  return s.devices.map((d) => {
+    const connected = now - new Date(d.created_at).getTime() > DEMO_CONNECT_MS;
+    return { ...d, last_seen_at: connected ? new Date(now - 3000).toISOString() : null, battery: connected ? 82 : null };
+  });
+}
+const demoSecret = () => Array.from({ length: 32 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
+const demoUuid = () =>
+  "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = Math.floor(Math.random() * 16);
+    return (c === "x" ? r : (r & 3) | 8).toString(16);
+  });
+
 export const demoApi: PairyApi & { simulateIncoming(): Promise<string>; reset(): void } = {
   mode: "demo",
 
@@ -403,7 +427,7 @@ export const demoApi: PairyApi & { simulateIncoming(): Promise<string>; reset():
       fams: await this.listMyFams(),
       incomingAlerts: await this.listIncomingAlerts(),
       myActiveAlert: my ? withSummary(my) : null,
-      device: "connected" as const,
+      device: deviceStatus(demoDevices()[0]),
     });
   },
 
@@ -816,6 +840,44 @@ export const demoApi: PairyApi & { simulateIncoming(): Promise<string>; reset():
 
   async getRecipientCount() {
     return delay(recipientIds(ME).length, 40);
+  },
+
+  // ---------------- 기기(키링) ----------------
+  async listDevices() {
+    return delay(demoDevices());
+  },
+
+  async registerDevice(name) {
+    const s = load();
+    demoDevices();
+    s.devices ??= [];
+    if (s.devices.length >= 5) throw new ApiError("TOO_MANY_DEVICES");
+    const d: Device = {
+      id: demoUuid(),
+      name: name?.trim() || "Pairy 키링",
+      battery: null,
+      firmware: null,
+      meet_count: 0,
+      last_seen_at: null,
+      created_at: iso(),
+    };
+    s.devices.unshift(d);
+    save();
+    return delay({ device_id: d.id, secret: demoSecret() }, 400);
+  },
+
+  async resetDeviceSecret(deviceId) {
+    if (!load().devices?.some((d) => d.id === deviceId)) throw new ApiError("DEVICE_NOT_FOUND");
+    return delay({ device_id: deviceId, secret: demoSecret() }, 300);
+  },
+
+  async removeDevice(deviceId) {
+    const s = load();
+    const before = s.devices?.length ?? 0;
+    s.devices = (s.devices ?? []).filter((d) => d.id !== deviceId);
+    if (s.devices.length === before) throw new ApiError("DEVICE_NOT_FOUND");
+    save();
+    return delay(undefined);
   },
 
   subscribeAlerts(onChange) {
