@@ -36,7 +36,7 @@ export function AlertListener() {
   const path = usePathname() ?? "";
   const [alert, setAlert] = useState<AlertDetail | null>(null);
   const disabled =
-    path === "/" || path.startsWith("/login") || path.startsWith("/start") || path.startsWith("/signup") || path.startsWith("/fall");
+    path === "/" || path.startsWith("/login") || path.startsWith("/start") || path.startsWith("/signup") || path.startsWith("/fall") || path.startsWith("/monitor");
 
   const check = useCallback(async () => {
     if (disabled) return;

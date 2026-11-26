@@ -7,7 +7,7 @@ const KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT
 const DEMO = process.env.NEXT_PUBLIC_DEMO === "1" || !URL_ || !KEY;
 
 // 로그인 없이 열 수 있는 경로: 랜딩(/) + 아래로 시작하는 주소
-const PUBLIC = ["/login", "/auth", "/start", "/signup"];
+const PUBLIC = ["/login", "/auth", "/start", "/signup", "/monitor"]; // /monitor: 키링 시리얼 모니터(서버 안 씀)
 // 이미 로그인했으면 볼 필요 없는 화면 -> 홈(또는 ?next)으로
 const AUTH_ONLY_GUEST = ["/start", "/signup", "/login"];
 const isPublic = (path: string) => path === "/" || PUBLIC.some((p) => path === p || path.startsWith(`${p}/`));

@@ -25,6 +25,11 @@
 //   - 키링은 로그인을 못 하므로 공개 키(anon key) + 기기 비밀키로 보냄.
 //     서버 함수가 비밀키를 확인한 뒤에만 그 키링 주인의 데이터를 바꿈.
 //
+//  ★ 웹 시리얼 모니터 (/monitor)
+//   - 0.1초마다 "@{...}" 로 시작하는 데이터 한 줄을 출력 (X·Y·Z · 합 g · 홀센서 · 상태 · 낙상 횟수 …)
+//   - 웹 페이지가 이 줄만 골라 읽어서 그래프로 보여 줌. 사람이 읽는 1초 로그는 그대로
+//   - Arduino IDE 시리얼 모니터에서도 보임 (너무 많으면 TELEMETRY_MS 를 늘리기)
+//
 //  구조: 센서/버튼/LED는 loop()에서, 인터넷 전송은 별도 작업(netTask)에서.
 //        인터넷이 느리거나 끊겨도 낙상 감지는 멈추지 않음.
 //
@@ -86,6 +91,8 @@ volatile State state = ST_NORMAL;
 
 bool mpuOk = false;
 float lastMag = 1.0;
+float lastAx = 0, lastAy = 0, lastAz = 1.0;  // 축별 가속도 (g)
+unsigned long fallCount = 0;                // 낙상 경고가 시작된 횟수 (켜진 뒤부터)
 unsigned long steps = 0;              // 화면에 보이는 걸음 (초기화 버튼으로 0)
 volatile uint32_t totalSteps = 0;     // 서버로 보낼 걸음 (초기화하지 않음)
 unsigned long lastStepTime = 0;
@@ -106,6 +113,8 @@ unsigned long friendShowUntil = 0;
 
 unsigned long lastSample = 0;
 unsigned long lastPrint = 0;
+unsigned long lastTelemetry = 0;
+const unsigned long TELEMETRY_MS = 100;  // 웹 시리얼 모니터용 데이터 출력 간격
 
 WebServer server(80);
 
@@ -170,16 +179,17 @@ bool mpuInit() {
   return true;
 }
 
-bool readMag(float &mag) {
+// 축별 가속도(ax, ay, az)와 합(mag = √(x²+y²+z²))을 읽음. 가만히 있으면 mag ≈ 1g
+bool readAccel(float &ax, float &ay, float &az, float &mag) {
   Wire.beginTransmission(MPU_ADDR);
   Wire.write(0x3B);
   if (Wire.endTransmission(false) != 0) return false;
   if (Wire.requestFrom((int)MPU_ADDR, 6) != 6) return false;
   uint8_t b[6];
   for (int i = 0; i < 6; i++) b[i] = Wire.read();
-  float ax = (int16_t)((b[0] << 8) | b[1]) / 4096.0f;
-  float ay = (int16_t)((b[2] << 8) | b[3]) / 4096.0f;
-  float az = (int16_t)((b[4] << 8) | b[5]) / 4096.0f;
+  ax = (int16_t)((b[0] << 8) | b[1]) / 4096.0f;
+  ay = (int16_t)((b[2] << 8) | b[3]) / 4096.0f;
+  az = (int16_t)((b[4] << 8) | b[5]) / 4096.0f;
   mag = sqrt(ax * ax + ay * ay + az * az);
   return true;
 }
@@ -190,6 +200,7 @@ void startAlert(const char *why, bool test = false) {
   state = ST_ALERT;
   alertTime = millis();
   alertGen++;
+  fallCount++;
   Serial.print(">>> 낙상 경고 시작: ");
   Serial.println(why);
   Serial.print(">>> ");
@@ -604,7 +615,8 @@ void handleStatus() {
   json += "\"net\":\"" + String(netText()) + "\",";
   json += "\"net_ago\":" + String(netAgo) + ",";
   json += "\"alert\":" + String((state == ST_ALERT || state == ST_EMERGENCY) ? "true" : "false") + ",";
-  json += "\"countdown\":" + String(countdown);
+  json += "\"countdown\":" + String(countdown) + ",";
+  json += "\"falls\":" + String(fallCount);
   json += "}";
   server.send(200, "application/json; charset=utf-8", json);
 }
@@ -625,6 +637,38 @@ void setupWeb() {
     server.send(200, "text/plain", "ok");
   });
   server.begin();
+}
+
+// ===== 웹 시리얼 모니터용 데이터 줄 =====
+// 예) @{"ax":0.02,"ay":-0.01,"az":1.00,"g":1.00,"hall":0,"state":"NORMAL","cd":0,"falls":2,"steps":1234,"friends":3,"mpu":1,"impact":2.00}
+//   hall   1 = 자석(친구 키링)이 닿아 있음
+//   state  NORMAL / FALLING(떨어지는 중) / CHECK(충격 후 움직임 확인) / ALERT(낙상 경고, 취소 가능) / EMERGENCY(응급)
+//   cd     ALERT 일 때 취소까지 남은 초
+//   impact 지금 충격 기준 g (웹 위험 감지 민감도에 따라 바뀜)
+const char *stateCode() {
+  switch (state) {
+    case ST_NORMAL:      return "NORMAL";
+    case ST_FALLING:     return "FALLING";
+    case ST_CHECK_STILL: return "CHECK";
+    case ST_ALERT:       return "ALERT";
+    case ST_EMERGENCY:   return "EMERGENCY";
+  }
+  return "";
+}
+
+void printTelemetry(unsigned long now) {
+  int countdown = 0;
+  if (state == ST_ALERT) {
+    long left = (long)cancelMs - (long)(now - alertTime);
+    countdown = left > 0 ? (left + 999) / 1000 : 0;
+  }
+  char buf[220];
+  snprintf(buf, sizeof(buf),
+           "@{\"ax\":%.2f,\"ay\":%.2f,\"az\":%.2f,\"g\":%.2f,\"hall\":%d,\"state\":\"%s\",\"cd\":%d,"
+           "\"falls\":%lu,\"steps\":%lu,\"friends\":%lu,\"mpu\":%d,\"impact\":%.2f}",
+           lastAx, lastAy, lastAz, lastMag, magnetOn ? 1 : 0, stateCode(), countdown,
+           fallCount, steps, friendCount, mpuOk ? 1 : 0, (float)impactG);
+  Serial.println(buf);
 }
 
 // ===== 시작 =====
@@ -670,8 +714,11 @@ void loop() {
 
   if (now - lastSample >= 10) {  // 1초에 100번 센서 읽기
     lastSample = now;
-    float mag;
-    if (mpuOk && readMag(mag)) {
+    float ax, ay, az, mag;
+    if (mpuOk && readAccel(ax, ay, az, mag)) {
+      lastAx = ax;
+      lastAy = ay;
+      lastAz = az;
       lastMag = mag;
       updateSteps(mag, now);
       updateFall(mag, now);
@@ -686,6 +733,11 @@ void loop() {
   updateHall(now);
   updateLed(now);
   server.handleClient();
+
+  if (now - lastTelemetry >= TELEMETRY_MS) {  // 웹 시리얼 모니터용 데이터 줄
+    lastTelemetry = now;
+    printTelemetry(now);
+  }
 
   if (now - lastPrint >= 1000) {  // 1초마다 상태 출력
     lastPrint = now;
