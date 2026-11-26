@@ -64,6 +64,7 @@ export default function MyPage() {
           desc={deviceDesc}
           descClass={st === "connected" ? "text-mint-ink font-semibold" : st === "disconnected" ? "text-[#b86a12] font-semibold" : ""}
         />
+        <MenuRow href="/receipt" icon={<span className="text-[18px]">🧾</span>} title="오늘의 갓생 영수증" desc="오늘 걸음 · 맞대기를 영수증으로" />
         <MenuRow href="/settings/safety" icon={<IconShield size={20} />} title="위험 감지 설정" desc="민감도 · 대기 시간 · 알림 받는 사람" />
         <MenuRow href="/alerts" icon={<IconBell size={20} />} title="긴급 알림 기록" desc="내 낙상 · 받은 알림" />
       </Glass>

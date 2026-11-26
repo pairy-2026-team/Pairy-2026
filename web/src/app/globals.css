@@ -179,3 +179,15 @@ body {
 .animate-step-bump {
   animation: step-bump 0.5s ease-out;
 }
+
+/* A 파트 16 갓생 영수증: 종이 + 아래쪽 톱니 */
+.receipt-paper {
+  background: #fbf9f4;
+  --zz: 10px;
+  -webkit-mask:
+    linear-gradient(#000 0 0) top / 100% calc(100% - var(--zz)) no-repeat,
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(var(--zz) * 2) var(--zz) repeat-x;
+  mask:
+    linear-gradient(#000 0 0) top / 100% calc(100% - var(--zz)) no-repeat,
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(var(--zz) * 2) var(--zz) repeat-x;
+}

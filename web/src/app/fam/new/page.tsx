@@ -2,8 +2,8 @@
 
 // 06_fam_create_1 팸 만들기: 이름 · 컬러 · 함께할 친구 고르기
 
-import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { useLoad } from "@/lib/hooks";
 import { errorMessage } from "@/lib/errors";
@@ -16,15 +16,25 @@ const COLORS = Object.keys(FAM_GRADIENTS) as FamColor[];
 const COLOR_LABEL: Record<FamColor, string> = { purple: "보라", teal: "청록", coral: "코랄", periwinkle: "라벤더" };
 const NAME_MAX = 20;
 
+// A 파트 03 명함 수신의 '팸에 초대하기': /fam/new?with=<친구 id> 로 열면 그 친구가 미리 선택됨
 export default function FamCreatePage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <FamCreate />
+    </Suspense>
+  );
+}
+
+function FamCreate() {
   const router = useRouter();
+  const withId = useSearchParams().get("with");
   const { data, loading: listLoading } = useLoad(async () => {
     const [friends, fams] = await Promise.all([api.listFriends(), api.listMyFams()]);
     return { friends: friends.filter((f) => f.status === "accepted"), fams };
   });
   const [name, setName] = useState("");
   const [color, setColor] = useState<FamColor>("purple");
-  const [picked, setPicked] = useState<string[]>([]);
+  const [picked, setPicked] = useState<string[]>(withId ? [withId] : []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

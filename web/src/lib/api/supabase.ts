@@ -4,6 +4,8 @@ import { ApiError, toApiError } from "@/lib/errors";
 import { kstDate, lastNDays } from "@/lib/date";
 import type {
   AlertDetail,
+  Card,
+  ReceiptData,
   AlertRecipient,
   Device,
   DeviceSecret,
@@ -38,6 +40,20 @@ async function uid() {
 }
 
 const normProfile = (p: Profile): Profile => ({ ...p, tags: p.tags ?? [] });
+
+// 명함은 select("*"): A 파트 명함 SQL 을 아직 안 돌렸으면 칼럼이 없을 뿐 에러는 안 남
+const normCard = (p: Partial<Card> & Profile): Card => ({
+  id: p.id,
+  nickname: p.nickname,
+  friend_code: p.friend_code,
+  handle: p.handle ?? null,
+  tags: p.tags ?? [],
+  affiliation: p.affiliation ?? null,
+  bio: p.bio ?? null,
+  instagram: p.instagram ?? null,
+  behance: p.behance ?? null,
+  portfolio_url: p.portfolio_url ?? null,
+});
 
 export const supabaseApi: PairyApi = {
   mode: "supabase",
@@ -325,6 +341,29 @@ export const supabaseApi: PairyApi = {
 
   async getRecipientCount() {
     return unwrap(await getSupabase().rpc("my_alert_recipient_count")) as number;
+  },
+
+  // ---------------- 명함 ----------------
+  async getMyCard() {
+    const me = await uid();
+    return normCard(unwrap(await getSupabase().from("profiles").select("*").eq("id", me).single()) as Card);
+  },
+
+  async getCard(friendCode) {
+    const row = unwrap(
+      await getSupabase().from("profiles").select("*").eq("friend_code", friendCode.trim().toUpperCase()).maybeSingle(),
+    ) as Card | null;
+    return row ? normCard(row) : null;
+  },
+
+  async updateMyCard(input) {
+    // 넘긴 값만 p_ 이름으로 (넘기지 않은 칼럼은 DB에서 그대로)
+    const params = Object.fromEntries(Object.entries(input).map(([k, v]) => [`p_${k}`, v]));
+    return normCard(unwrap(await getSupabase().rpc("update_my_profile", params)) as Card);
+  },
+
+  async getReceipt() {
+    return unwrap(await getSupabase().rpc("my_receipt")) as ReceiptData;
   },
 
   // ---------------- 기기(키링) ----------------

@@ -5,7 +5,8 @@
 //  웹(Web NFC)은 폰끼리 직접 주고받기가 안 돼서, 이렇게 씀:
 //    1) 내 키링에 붙은 NFC 스티커에 "내 명함 주소"를 써 둔다      -> [내 키링 태그에 쓰기]
 //    2) 친구가 자기 폰을 내 키링에 대면 그 주소가 열림
-//       -> /friends/add?code=<내 친구 번호>&source=nfc -> 바로 친구 (03_card_received 역할)
+//       -> /card/<내 친구 번호>?source=nfc -> 03 명함 수신 화면에서 '친구로 추가'
+//       (예전 형식 /friends/add?code= 로 쓴 태그도 읽힘)
 //    3) 반대로 내가 친구 키링을 읽을 수도 있음                      -> [친구 키링 읽기]
 //
 //  Web NFC 는 안드로이드 크롬 + https 에서만 동작. 아이폰은 기본 카메라/NFC 앱이 태그 주소를 열어 줌.
@@ -16,7 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useLoad } from "@/lib/hooks";
 import { vibrate } from "@/lib/device";
-import { friendAddUrl } from "@/lib/format";
+import { cardUrl, codeFromCardUrl } from "@/lib/format";
 import { canWriteNfc, writeNfcUrl } from "@/lib/share";
 import { Avatar, Button, ErrorState, Glass, Loading, Sparkles, TopBar, cx, useToast } from "@/components/ui";
 import { IconNfc } from "@/components/icons";
@@ -30,17 +31,6 @@ type NdefReaderT = {
   onreading: ((e: { message: { records: NdefRecord[] } }) => void) | null;
   onreadingerror: (() => void) | null;
 };
-
-/** 태그에서 읽은 주소 -> 친구 번호 (우리 앱 주소가 아니면 null) */
-function codeFromUrl(raw: string): string | null {
-  try {
-    const u = new URL(raw);
-    const code = u.searchParams.get("code")?.toUpperCase();
-    return u.pathname.startsWith("/friends/add") && code && /^[A-Z0-9]{6}$/.test(code) ? code : null;
-  } catch {
-    return null;
-  }
-}
 
 export default function NfcPage() {
   const { data, error, loading, reload } = useLoad(() => api.getMe());
@@ -85,12 +75,12 @@ function NfcTag({ me }: { me: Profile }) {
       reader.onreading = (e) => {
         const rec = e.message.records.find((r) => r.recordType === "url" && r.data);
         const url = rec?.data ? new TextDecoder(rec.encoding ?? "utf-8").decode(rec.data) : "";
-        const code = codeFromUrl(url);
+        const code = codeFromCardUrl(url);
         if (!code) return toast("Pairy 명함 태그가 아니에요");
         if (code === me.friend_code) return toast("내 키링이에요. 친구 키링에 대 주세요");
         vibrate(80);
         stop();
-        router.push(`/friends/add?code=${code}&source=nfc`);
+        router.push(`/card/${code}?source=nfc`);
       };
       reader.onreadingerror = () => toast("태그를 읽지 못했어요. 다시 대 주세요");
     } catch (e) {
@@ -105,7 +95,7 @@ function NfcTag({ me }: { me: Profile }) {
     stop();
     setMode("writing");
     try {
-      await writeNfcUrl(friendAddUrl(me.friend_code, "nfc"));
+      await writeNfcUrl(cardUrl(me.friend_code, "nfc"));
       vibrate([60, 60, 60]);
       toast("키링 태그에 내 명함을 저장했어요");
     } catch {

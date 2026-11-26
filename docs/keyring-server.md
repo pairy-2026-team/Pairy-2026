@@ -13,7 +13,8 @@
 
 1. **SQL 실행**: Supabase 대시보드 → SQL Editor에 아래 순서로 붙여 넣고 실행
    1. `supabase/migrations/20261124000000_part_b_home_friends_fam_safety.sql` (B 파트, 이미 했으면 생략)
-   2. `supabase/migrations/20261125000000_part_a_devices_keyring.sql` (이번 A 파트)
+   2. `supabase/migrations/20261125000000_part_a_devices_keyring.sql` (A 파트: 기기 · 키링)
+   3. `supabase/migrations/20261126000000_part_a_card_receipt.sql` (A 파트: 명함 칸 · 영수증)
 2. **웹에서 키링 등록**: `/device` → **새 키링 등록** → 나온 두 줄(`DEVICE_ID`, `DEVICE_SECRET`) 복사
    비밀키는 이때 한 번만 보여요. 잃어버리면 같은 화면의 **비밀키 다시 받기**
 3. **펌웨어 설정**: `firmware/pariy_keyring/secrets.example.h`를 같은 폴더에 `secrets.h`로 복사하고 채우기

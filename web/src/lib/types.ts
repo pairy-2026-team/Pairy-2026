@@ -8,6 +8,39 @@ export type Profile = {
   tags: string[];
 };
 
+/** 명함(04)에만 쓰는 칼럼. B 파트 화면이 쓰는 Profile 과 분리 (A 파트 SQL 실행 전에도 B 화면이 깨지지 않게) */
+export type CardExtra = {
+  affiliation: string | null; // 서울 · 디자인 전공
+  bio: string | null; // 한 줄 소개
+  instagram: string | null; // @ 없이
+  behance: string | null;
+  portfolio_url: string | null;
+};
+export type Card = Profile & CardExtra;
+
+/** 명함 저장: 넘긴 값만 바뀜. "" 은 비우기 */
+export type CardInput = Partial<{
+  nickname: string;
+  handle: string;
+  affiliation: string;
+  bio: string;
+  tags: string[];
+  instagram: string;
+  behance: string;
+  portfolio_url: string;
+}>;
+
+/** 16 오늘의 갓생 영수증 재료 (계산은 화면에서) */
+export type ReceiptData = {
+  day: string;
+  steps: number;
+  goal: number;
+  meets_today: number;
+  new_friends: number;
+  meet_total: number;
+  device_id: string | null;
+};
+
 export type FriendStatus = "pending" | "accepted";
 export type FriendSource = "code" | "search" | "nfc" | "keyring";
 

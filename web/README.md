@@ -55,14 +55,24 @@ A 파트 화면 (하단 탭 `NFC → /nfc`, `마이 → /my`, 홈 바로가기 `
 
 | 시안 | 주소 | 파일 |
 |---|---|---|
-| 04_my_card_1 내 명함 | `/card` | `src/app/card/page.tsx` |
+| 09_landing_desktop_1 랜딩 | `/` (로그인 없이 공개) | `src/app/page.tsx` |
+| 00 시작 화면 | `/start` | `src/app/start/page.tsx` |
+| 00_signup 회원가입 (1/2 이메일·비밀번호, 2/2 이름·아이디·태그) | `/signup` | `src/app/signup/page.tsx` |
+| 00 로그인 | `/login` | `src/app/login/page.tsx` |
+| 04_my_card_1 내 명함 · 편집 | `/card`, `/card/edit` | `src/app/card/page.tsx`, `src/app/card/edit/page.tsx` |
+| 03_card_received_1 명함 수신 | `/card/<친구 번호>?source=nfc` | `src/app/card/[code]/page.tsx` |
 | 02_nfc_tag_3 NFC 태그 | `/nfc` | `src/app/nfc/page.tsx` |
-| 03_card_received_1 명함 수신 | `/friends/add?code=…&source=nfc` | `src/app/friends/add/page.tsx` (B 파트 화면 재사용) |
 | 12_device_scan · 13_device_connected 기기 | `/device` | `src/app/device/page.tsx` |
+| 16_Receipt 갓생 영수증 | `/receipt` (마이 탭 메뉴) | `src/app/receipt/page.tsx`, 계산 `src/lib/receipt.ts` |
 | (마이 탭) 내 정보 · 메뉴 | `/my` | `src/app/my/page.tsx` |
 
+로그인 흐름: 로그인 안 한 사람이 앱 주소를 열면 `proxy.ts`가 `/start?next=<원래 주소>`로 보내고,
+가입/로그인이 끝나면 그 주소로 돌아갑니다 (NFC로 받은 명함 · 팸 초대가 끊기지 않게).
+이미 로그인했으면 `/start`, `/signup`, `/login`은 홈으로 보냅니다.
+
+명함 공유 주소는 `/card/<친구 번호>`(03 화면)예요. 예전 `/friends/add?code=` 주소도 그대로 동작해요.
+
 키링 → 서버 연결(기기 등록 · 비밀키 · 펌웨어 설정)은 [`docs/keyring-server.md`](../docs/keyring-server.md)를 보세요.
-`/login`은 테스트용 임시 화면이에요.
 
 ## A 파트와 함께 쓰는 DB 칼럼
 
@@ -76,7 +86,8 @@ A 파트 화면 (하단 탭 `NFC → /nfc`, `마이 → /my`, 홈 바로가기 `
 | 용도 | URL |
 |---|---|
 | 팸 초대 | `https://<도메인>/f/<팸코드 4자리>` (초대 시트의 NFC 버튼으로 안드로이드에서 바로 태그에 쓰기 가능) |
-| 친구 추가 | `https://<도메인>/friends/add?code=<친구번호>&source=nfc` |
+| 명함 받기 (03) | `https://<도메인>/card/<친구번호>?source=nfc` (`/nfc` 화면의 "내 키링 태그에 내 명함 쓰기"가 이 주소를 써요) |
+| 친구 바로 추가 (예전) | `https://<도메인>/friends/add?code=<친구번호>&source=nfc` |
 | 낙상 화면 (시연) | `https://<도메인>/fall?source=keyring` |
 
 ## 상태 흐름

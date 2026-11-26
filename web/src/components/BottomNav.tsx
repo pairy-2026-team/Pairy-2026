@@ -28,11 +28,11 @@ const RIGHT: Tab[] = [
 ];
 
 // 집중해야 하는 화면에서는 탭바를 숨김
-const HIDE = ["/fall", "/login", "/fam/new", "/fam/join", "/friends/add"];
+const HIDE = ["/fall", "/login", "/fam/new", "/fam/join", "/friends/add", "/start", "/signup", "/card/", "/receipt"];
 
 export function BottomNav() {
   const path = usePathname() ?? "";
-  if (HIDE.some((h) => path.startsWith(h))) return null;
+  if (path === "/" || HIDE.some((h) => path.startsWith(h))) return null; // "/" = A 파트 랜딩
   const nfcOn = path.startsWith("/nfc");
 
   const item = (t: Tab) => {

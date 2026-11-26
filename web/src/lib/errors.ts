@@ -25,6 +25,13 @@ const MESSAGES: Record<string, string> = {
   DEVICE_NOT_FOUND: "키링을 찾을 수 없어요.",
   TOO_MANY_DEVICES: "키링은 5개까지 등록할 수 있어요.",
   DEVICE_NAME_REQUIRED: "키링 이름을 입력해 주세요.",
+  NICKNAME_REQUIRED: "이름을 입력해 주세요.",
+  INVALID_HANDLE: "아이디는 영어 소문자 · 숫자 · 점(.) · 밑줄(_)로 2~30자예요.",
+  HANDLE_TAKEN: "이미 쓰고 있는 아이디예요.",
+  TOO_MANY_TAGS: "태그는 6개까지 넣을 수 있어요.",
+  TEXT_TOO_LONG: "글자 수가 너무 많아요.",
+  INVALID_URL: "주소가 올바르지 않아요.",
+  PROFILE_NOT_FOUND: "프로필을 찾을 수 없어요.",
   NETWORK: "인터넷 연결을 확인해 주세요.",
 };
 
