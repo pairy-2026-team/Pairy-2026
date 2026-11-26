@@ -16,6 +16,33 @@ export function famInviteUrl(code: string) {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   return `${origin}/f/${code}`;
 }
+/** 내 명함을 받는 주소 (NFC 태그 · QR · 링크) -> 03 명함 수신 화면에서 보고 '친구로 추가' */
+export function cardUrl(code: string, source?: "nfc" | "qr" | "link") {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return `${origin}/card/${code}${source ? `?source=${source}` : ""}`;
+}
+
+/** 태그 · QR 에서 읽은 주소 -> 친구 번호. /card/ABC123 과 예전 /friends/add?code=ABC123 둘 다 */
+export function codeFromCardUrl(raw: string): string | null {
+  try {
+    const u = new URL(raw);
+    const m = u.pathname.match(/^\/card\/([A-Za-z0-9]{6})\/?$/);
+    const code = (m?.[1] ?? (u.pathname.startsWith("/friends/add") ? u.searchParams.get("code") : null))?.toUpperCase();
+    return code && /^[A-Z0-9]{6}$/.test(code) ? code : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 로그인 뒤 돌아갈 ?next= 주소: 우리 사이트 안 주소만 허용 (//evil.com, /\\evil.com 같은 바깥 주소는 fallback) */
+export function safeNext(next: string | null | undefined, fallback = "/home") {
+  return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : fallback;
+}
+
+/** 명함 링크 칸 -> 실제 주소 */
+export const instagramUrl = (id: string) => `https://instagram.com/${encodeURIComponent(id)}`;
+export const behanceUrl = (id: string) => `https://www.behance.net/${encodeURIComponent(id)}`;
+
 export const prettyUrl = (url: string) => url.replace(/^https?:\/\//, "");
 
 /** 이름 첫 글자 (아바타) */

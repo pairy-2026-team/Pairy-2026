@@ -3,6 +3,11 @@ import type {
   AlertKind,
   AlertRecipient,
   AlertSource,
+  Card,
+  CardInput,
+  ReceiptData,
+  Device,
+  DeviceSecret,
   EmergencyAlert,
   Fam,
   FamColor,
@@ -73,6 +78,22 @@ export interface PairyApi {
   /** 진행 중인 내 알림에 현재 위치 올리기 */
   updateAlertLocation(alertId: string, loc: GeoInput): Promise<EmergencyAlert>;
   getRecipientCount(): Promise<number>;
+
+  // 명함 - A 파트 04·03
+  getMyCard(): Promise<Card>;
+  /** 친구 번호로 다른 사람 명함 보기 (없으면 null) */
+  getCard(friendCode: string): Promise<Card | null>;
+  updateMyCard(input: CardInput): Promise<Card>;
+
+  // 오늘의 갓생 영수증 - A 파트 16
+  getReceipt(): Promise<ReceiptData>;
+
+  // 기기(키링) - A 파트 12·13
+  listDevices(): Promise<Device[]>;
+  /** 새 키링 등록. 비밀키는 이때만 받을 수 있음 */
+  registerDevice(name?: string): Promise<DeviceSecret>;
+  resetDeviceSecret(deviceId: string): Promise<DeviceSecret>;
+  removeDevice(deviceId: string): Promise<void>;
 
   /** emergency_alerts / alert_recipients 변경을 구독. 반환값으로 구독 해제 */
   subscribeAlerts(onChange: (alertId: string) => void): () => void;
