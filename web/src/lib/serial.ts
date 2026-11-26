@@ -7,6 +7,10 @@
 //    @{"ax":0.02,"ay":-0.01,"az":1.00,"g":1.00,"hall":0,"state":"NORMAL","cd":0,"falls":2,...}
 //  '@' 로 시작하면 데이터, 아니면 사람이 읽는 로그 (">>> 낙상 경고 시작" 등)
 //
+//  팀원 펌웨어 형식도 읽음 (상태 값 없이 숫자만 있는 한 줄)
+//    가속도(g) x=-0.93 y=0.28 z=0.25 합=1.00 | 홀센서=1 | 걷기=42 뛰기=16 낙상=0
+//    -> 낙상 숫자가 올라가면 화면이 10초 동안 '낙상 감지 중'을 띄움 (monitor/page.tsx)
+//
 //  Web Serial 은 PC 크롬 · 엣지에서만 되고, https 또는 localhost 에서만 열림
 // =============================================================
 
@@ -21,19 +25,51 @@ export type Telemetry = {
   state: KeyringState;
   cd: number; // ALERT 일 때 취소까지 남은 초
   falls: number; // 켜진 뒤 낙상 경고 횟수
-  steps: number;
-  friends: number;
+  steps: number; // 걸음 (팀원 형식: 걷기)
+  runs: number | null; // 뛰기 (팀원 형식에만 있음)
+  friends: number | null; // 친구 맞대기 (팀원 형식에는 없음)
   mpu: boolean; // 가속도 센서 연결됨
   impact: number; // 지금 충격 기준 g
+  source: "json" | "text"; // json = Pairy 펌웨어(@{...}), text = 팀원 펌웨어(숫자만)
 };
 
 const STATES: KeyringState[] = ["NORMAL", "FALLING", "CHECK", "ALERT", "EMERGENCY"];
 const num = (v: unknown, d = 0) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 
+/** 팀원 펌웨어 한 줄: "가속도(g) x=.. y=.. z=.. 합=.. | 홀센서=1 | 걷기=42 뛰기=16 낙상=0" */
+function parseTextLine(t: string): Telemetry | null {
+  const f = (re: RegExp) => {
+    const m = t.match(re);
+    return m ? Number(m[1]) : null;
+  };
+  const ax = f(/\bx\s*=\s*(-?\d+(?:\.\d+)?)/i);
+  const ay = f(/\by\s*=\s*(-?\d+(?:\.\d+)?)/i);
+  const az = f(/\bz\s*=\s*(-?\d+(?:\.\d+)?)/i);
+  if (ax == null || ay == null || az == null) return null; // 가속도 세 축이 있어야 데이터 줄로 봄
+  const g = f(/(?:합|sum|\bg)\s*=\s*(-?\d+(?:\.\d+)?)/i) ?? Math.sqrt(ax * ax + ay * ay + az * az);
+  const hall = f(/(?:홀센서|홀|hall)\s*=\s*(\d+)/i);
+  return {
+    ax,
+    ay,
+    az,
+    g,
+    hall: hall === 1, // 1/0 뜻은 모듈마다 반대일 수 있어서 화면에서 뒤집을 수 있음
+    state: "NORMAL", // 상태 값이 없음 -> 화면이 낙상 숫자 변화로 판단
+    cd: 0,
+    falls: f(/(?:낙상|fall)\s*=\s*(\d+)/i) ?? 0,
+    steps: f(/(?:걷기|걸음|walk|steps?)\s*=\s*(\d+)/i) ?? 0,
+    runs: f(/(?:뛰기|run)\s*=\s*(\d+)/i),
+    friends: f(/(?:친구|friends?)\s*=\s*(\d+)/i),
+    mpu: true,
+    impact: 3, // 팀원 펌웨어 충격 기준 3.0g (자유낙하 0.3g 후 500ms 안에)
+    source: "text",
+  };
+}
+
 /** 한 줄 -> 데이터 (데이터 줄이 아니거나 깨졌으면 null) */
 export function parseTelemetry(line: string): Telemetry | null {
   const t = line.trim();
-  if (!t.startsWith("@{")) return null;
+  if (!t.startsWith("@{")) return parseTextLine(t);
   try {
     const o = JSON.parse(t.slice(1)) as Record<string, unknown>;
     const state = STATES.includes(o.state as KeyringState) ? (o.state as KeyringState) : "NORMAL";
@@ -47,9 +83,11 @@ export function parseTelemetry(line: string): Telemetry | null {
       cd: num(o.cd),
       falls: num(o.falls),
       steps: num(o.steps),
+      runs: typeof o.runs === "number" ? o.runs : null,
       friends: num(o.friends),
       mpu: o.mpu !== 0 && o.mpu !== false,
       impact: num(o.impact, 2),
+      source: "json",
     };
   } catch {
     return null; // 연결 직후 앞부분이 잘린 줄 등

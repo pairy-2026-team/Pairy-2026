@@ -21,7 +21,10 @@ import { cx } from "@/components/ui";
 
 const HISTORY = 150; // 그래프에 보이는 샘플 수 (0.1초 x 150 = 15초)
 const LOG_MAX = 200;
-const FREEFALL_G = 0.5; // 펌웨어 FREEFALL_G 와 같게
+const FREEFALL_G = 0.5; // Pairy 펌웨어 FREEFALL_G
+const FREEFALL_G_TEXT = 0.3; // 팀원 펌웨어 자유낙하 기준
+const TEXT_ALERT_MS = 5_000; // 팀원 펌웨어(상태 값 없음): 낙상 숫자가 오르면 LED 처럼 5초 '낙상 감지 중'
+const HALL_KEY = "pairy-monitor-hall-invert";
 
 type Conn = { t: "idle" } | { t: "connecting" } | { t: "serial" } | { t: "demo" } | { t: "error"; msg: string };
 type Sample = { g: number; at: number };
@@ -41,8 +44,10 @@ export default function MonitorPage() {
   const [logs, setLogs] = useState<string[]>([]);
   const [showRaw, setShowRaw] = useState(false);
   const [supported, setSupported] = useState(true);
+  const [hallInvert, setHallInvert] = useState(false); // 홀센서 1/0 뜻 뒤집기 (모듈마다 반대)
   const connRef = useRef<SerialConnection | null>(null);
   const showRawRef = useRef(false);
+  const fallRef = useRef<{ falls: number | null; until: number; checking: boolean }>({ falls: null, until: 0, checking: false });
   const demo = useDemo();
 
   useEffect(() => {
@@ -50,28 +55,62 @@ export default function MonitorPage() {
   }, [showRaw]);
   // 서버 렌더링 때는 navigator 가 없어서 화면이 뜬 뒤에 확인
   useEffect(() => {
-    const t = setTimeout(() => setSupported(serialSupported()), 0);
+    const t = setTimeout(() => {
+      setSupported(serialSupported());
+      try {
+        setHallInvert(localStorage.getItem(HALL_KEY) === "1");
+      } catch {
+        /* 저장소를 못 쓰면 기본값 */
+      }
+    }, 0);
     return () => clearTimeout(t);
   }, []);
+  const toggleHall = () =>
+    setHallInvert((v) => {
+      try {
+        localStorage.setItem(HALL_KEY, v ? "0" : "1");
+      } catch {
+        /* 무시 */
+      }
+      return !v;
+    });
 
   const addLog = useCallback((line: string) => setLogs((l) => [...l.slice(-(LOG_MAX - 1)), line]), []);
 
   /** 한 줄 처리: 데이터 줄이면 숫자 갱신, 아니면 로그 */
   const onLine = useCallback(
     (line: string) => {
-      const t = parseTelemetry(line);
-      if (t) {
-        setTel(t);
-        setHistory((h) => [...h.slice(-(HISTORY - 1)), { g: t.g, at: Date.now() }]);
-        if (showRawRef.current) addLog(line);
-      } else {
+      const parsed = parseTelemetry(line);
+      const now = Date.now();
+      const f = fallRef.current;
+
+      // 팀원 펌웨어는 상태 값을 안 보내서, 로그 문구와 낙상 숫자로 상태를 판단
+      //   "충격 감지... 움직임 확인 중" -> CHECK,  "낙상 아님" -> NORMAL,  낙상 숫자 +1 -> 5초간 ALERT
+      if (!parsed) {
+        if (/충격\s*감지/.test(line)) f.checking = true;
+        if (/낙상\s*아님/.test(line)) f.checking = false;
         addLog(line);
+        return;
       }
+      let t: Telemetry = parsed;
+      if (t.source === "text") {
+        if (f.falls != null && t.falls > f.falls) {
+          f.until = now + TEXT_ALERT_MS;
+          f.checking = false;
+        }
+        f.falls = t.falls;
+        if (now < f.until) t = { ...t, state: "ALERT", cd: Math.ceil((f.until - now) / 1000) };
+        else if (f.checking) t = { ...t, state: "CHECK" };
+      }
+      setTel(t);
+      setHistory((h) => [...h.slice(-(HISTORY - 1)), { g: t.g, at: now }]);
+      if (showRawRef.current) addLog(line);
     },
     [addLog],
   );
 
   const reset = () => {
+    fallRef.current = { falls: null, until: 0, checking: false };
     setTel(null);
     setHistory([]);
     setLogs([]);
@@ -169,16 +208,18 @@ export default function MonitorPage() {
 
         <StateBanner tel={tel} />
 
-        <section className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <section
+          className={cx(
+            "mt-4 grid grid-cols-2 gap-3",
+            // 타일 수(낙상 · 걸음 · 홀센서 + 뛰기 · 친구 있으면)에 맞춰 칸 수
+            3 + (tel?.runs != null ? 1 : 0) + (tel?.friends != null ? 1 : 0) === 5 ? "md:grid-cols-5" : "md:grid-cols-4",
+          )}
+        >
           <Tile label="낙상 감지 횟수" value={tel ? `${tel.falls}회` : "–"} />
-          <Tile label="걸음 수" value={tel ? tel.steps.toLocaleString("ko-KR") : "–"} />
-          <Tile label="친구 맞대기" value={tel ? `${tel.friends}번` : "–"} />
-          <Tile
-            label="홀센서"
-            value={tel ? (tel.hall ? "맞대짐" : "떨어짐") : "–"}
-            badge={tel ? <Dot on={tel.hall} /> : null}
-            sub={tel?.hall ? "친구 키링 자석이 닿아 있어요" : "자석이 닿으면 '맞대짐'"}
-          />
+          <Tile label={tel?.runs != null ? "걷기" : "걸음 수"} value={tel ? tel.steps.toLocaleString("ko-KR") : "–"} />
+          {tel?.runs != null && <Tile label="뛰기" value={tel.runs.toLocaleString("ko-KR")} />}
+          {tel?.friends != null && <Tile label="친구 맞대기" value={`${tel.friends}번`} />}
+          <HallTile tel={tel} invert={hallInvert} onToggle={toggleHall} />
         </section>
 
         <section className="glass mt-4 rounded-[28px] p-5 sm:p-6">
@@ -195,9 +236,12 @@ export default function MonitorPage() {
             <Axis label="Z" v={tel?.az} />
             {tel && !tel.mpu && <p className="text-[14px] font-bold text-danger">⚠ 가속도 센서 연결 안 됨 · 배선 확인</p>}
           </div>
-          <GChart samples={history} impact={tel?.impact ?? 2} />
+          <GChart samples={history} impact={tel?.impact ?? 2} freefall={tel?.source === "text" ? FREEFALL_G_TEXT : FREEFALL_G} />
           <p className="mt-2 text-[12px] text-sub">
-            최근 15초 · 가만히 있으면 1g · {FREEFALL_G}g 아래로 떨어진 뒤 충격 기준을 넘고 2초간 움직임이 없으면 낙상 감지
+            최근 15초 · 가만히 있으면 1g ·{" "}
+            {tel?.source === "text"
+              ? "0.3g 아래로 떨어진 뒤 0.5초 안에 3.0g 충격 → 1초 뒤부터 3초간 움직임(0.15g)이 없으면 낙상 확정"
+              : `${FREEFALL_G}g 아래로 떨어진 뒤 충격 기준을 넘고 2초간 움직임이 없으면 낙상 감지`}
           </p>
         </section>
 
@@ -227,7 +271,7 @@ function ConnStatus({ conn, supported, noData }: { conn: Conn; supported: boolea
     text = conn.msg;
     bad = true;
   } else if (noData) {
-    text = "연결됐어요. 데이터가 안 오면: 키링에 최신 펌웨어가 올라갔는지, 보드 설정 'USB CDC On Boot = Enabled' 인지 확인해 주세요.";
+    text = "연결됐어요. 숫자가 안 나오면 아래 로그를 보세요. 'x= y= z=' 가 있는 줄이나 '@{' 줄이 와야 그래프가 그려져요. (보드 설정 'USB CDC On Boot = Enabled' 도 확인)";
   } else if (conn.t === "idle") {
     text = "키링을 USB로 연결하고 [시리얼 연결]을 눌러 포트를 골라 주세요. Arduino IDE 시리얼 모니터는 닫아 주세요.";
   } else if (conn.t === "serial") {
@@ -260,12 +304,16 @@ function StateBanner({ tel }: { tel: Telemetry | null }) {
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-[20px] font-extrabold">{ui.label}</p>
-        {tel.state === "ALERT" && <p className="text-[14px] font-semibold opacity-90">키링 BOOT 버튼을 누르면 취소돼요</p>}
+        {tel.state === "ALERT" && (
+          <p className="text-[14px] font-semibold opacity-90">
+            {tel.source === "text" ? "낙상이 확정됐어요 · 키링 LED 5초 깜빡임" : "키링 BOOT 버튼을 누르면 취소돼요"}
+          </p>
+        )}
         {tel.state === "EMERGENCY" && <p className="text-[14px] font-semibold opacity-90">BOOT 버튼을 2초 길게 누르면 &lsquo;괜찮아요&rsquo;</p>}
       </div>
       {tel.state === "ALERT" && (
         <span className="text-right">
-          <span className="block text-[12px] font-bold opacity-90">취소까지</span>
+          <span className="block text-[12px] font-bold opacity-90">{tel.source === "text" ? "LED 깜빡임" : "취소까지"}</span>
           <span className="text-[40px] leading-none font-extrabold tabular-nums">{tel.cd}</span>
           <span className="ml-0.5 text-[16px] font-bold">초</span>
         </span>
@@ -283,6 +331,34 @@ function Tile({ label, value, sub, badge }: { label: string; value: string; sub?
       </p>
       <p className="mt-2 text-[30px] leading-none font-extrabold tabular-nums">{value}</p>
       {sub && <p className="mt-2 text-[12px] text-sub">{sub}</p>}
+    </div>
+  );
+}
+
+/** 홀센서: 자석(친구 키링)이 닿았는지. 1/0 뜻이 모듈마다 반대일 수 있어서 [반대로] 버튼 */
+function HallTile({ tel, invert, onToggle }: { tel: Telemetry | null; invert: boolean; onToggle: () => void }) {
+  const on = tel ? tel.hall !== invert : false;
+  return (
+    <div className="glass rounded-[24px] p-5">
+      <p className="flex items-center gap-2 text-[13px] font-bold text-ink-2">
+        {tel && <Dot on={on} />}
+        홀센서
+        {tel?.source === "text" && (
+          <button onClick={onToggle} className="ml-auto rounded-full bg-white/70 px-2.5 py-0.5 text-[11px] font-bold text-violet" title="1/0 뜻 바꾸기">
+            반대로
+          </button>
+        )}
+      </p>
+      <p className="mt-2 text-[30px] leading-none font-extrabold">{tel ? (on ? "맞대짐" : "떨어짐") : "–"}</p>
+      <p className="mt-2 text-[12px] text-sub">
+        {!tel
+          ? "자석이 닿으면 '맞대짐'"
+          : tel.source === "text"
+            ? `받은 값 ${tel.hall ? 1 : 0} · ${invert ? "0" : "1"} = 맞대짐`
+            : on
+              ? "친구 키링 자석이 닿아 있어요"
+              : "자석이 닿으면 '맞대짐'"}
+      </p>
     </div>
   );
 }
@@ -312,7 +388,7 @@ function Axis({ label, v }: { label: string; v?: number }) {
 }
 
 /** 합해진 g 그래프: 한 줄 + 기준선(떨어짐 · 가만히 · 충격). 마우스를 올리면 그 순간 값 */
-function GChart({ samples, impact }: { samples: Sample[]; impact: number }) {
+function GChart({ samples, impact, freefall }: { samples: Sample[]; impact: number; freefall: number }) {
   const W = 1000;
   const H = 220;
   const PAD_L = 8;
@@ -334,7 +410,7 @@ function GChart({ samples, impact }: { samples: Sample[]; impact: number }) {
   const last = samples[samples.length - 1];
 
   const refs = [
-    { g: FREEFALL_G, label: `떨어짐 ${FREEFALL_G}g` },
+    { g: freefall, label: `떨어짐 ${freefall}g` },
     { g: 1, label: "가만히 1g" },
     { g: impact, label: `충격 ${impact.toFixed(1)}g` },
   ];
