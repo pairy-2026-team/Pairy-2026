@@ -42,11 +42,11 @@ export default function MonitorPage() {
   const [tel, setTel] = useState<Telemetry | null>(null);
   const [history, setHistory] = useState<Sample[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
-  const [showRaw, setShowRaw] = useState(false);
+  const [showRaw, setShowRaw] = useState(true); // 숫자 데이터 줄도 로그에 (끄면 사람이 읽는 로그만)
   const [supported, setSupported] = useState(true);
   const [hallInvert, setHallInvert] = useState(false); // 홀센서 1/0 뜻 뒤집기 (모듈마다 반대)
   const connRef = useRef<SerialConnection | null>(null);
-  const showRawRef = useRef(false);
+  const showRawRef = useRef(true);
   const fallRef = useRef<{ falls: number | null; until: number; checking: boolean }>({ falls: null, until: 0, checking: false });
   const demo = useDemo();
 
@@ -250,7 +250,7 @@ export default function MonitorPage() {
             <h2 className="text-[14px] font-bold">시리얼 로그</h2>
             <label className="flex items-center gap-2 text-[13px] text-white/70">
               <input type="checkbox" checked={showRaw} onChange={(e) => setShowRaw(e.target.checked)} />
-              데이터 줄(@)도 보기
+              숫자 데이터 줄도 보기
             </label>
           </div>
           <Log lines={logs} />
