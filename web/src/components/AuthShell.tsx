@@ -18,7 +18,9 @@ export function authMessage(raw: string) {
   if (/password/i.test(raw) && /(at least|short|weak)/i.test(raw)) return "비밀번호가 너무 짧거나 쉬워요. 6자 이상으로 정해 주세요.";
   if (/rate limit|too many/i.test(raw)) return "잠시 후 다시 시도해 주세요. (요청이 너무 많아요)";
   if (/invalid.*email/i.test(raw)) return "이메일 주소를 확인해 주세요.";
-  if (/fetch|network/i.test(raw)) return "인터넷 연결을 확인해 주세요.";
+  // 요청이 아예 못 나감: 대부분 배포 환경변수(Supabase 주소 · 키)에 따옴표 · 공백 · 줄바꿈이 들어간 경우
+  if (/Invalid value|Failed to execute 'fetch'/i.test(raw)) return `서버 키 설정이 잘못됐어요 (공백 · 줄바꿈 확인). [${raw}]`;
+  if (/fetch|network/i.test(raw)) return `서버에 연결하지 못했어요. 인터넷 또는 Supabase 주소 설정을 확인해 주세요. [${raw}]`;
   return raw;
 }
 

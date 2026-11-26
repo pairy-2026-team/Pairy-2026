@@ -28,7 +28,7 @@ const RIGHT: Tab[] = [
 ];
 
 // 집중해야 하는 화면에서는 탭바를 숨김
-const HIDE = ["/fall", "/login", "/fam/new", "/fam/join", "/friends/add", "/start", "/signup", "/card/", "/receipt"];
+const HIDE = ["/fall", "/login", "/fam/new", "/fam/join", "/friends/add", "/start", "/signup", "/card/", "/receipt", "/monitor"];
 
 export function BottomNav() {
   const path = usePathname() ?? "";
